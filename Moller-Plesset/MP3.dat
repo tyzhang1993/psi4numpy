@@ -39,6 +39,7 @@ d_convergence 1e-8
 }
 
 # First compute RHF energy using Psi4
+print "\nStarting RHF and integral transformation..."
 energy('RHF')
 
 # Grab data from 
@@ -62,28 +63,16 @@ memory_footprint = ERI_Size*2.5
 if memory_footprint > numpy_memory:
     clean()
     raise Exception("Estimated memory utilization (%4.2f GB) exceeds numpy_memory limit of %4.2f GB." % (memory_footprint, numpy_memory))
-
-# Integral generation from Psi4's MintsHelper
-t = time.time()
-mints = MintsHelper()
-I = np.array(mints.ao_eri())
-I = I.reshape(nmo, nmo, nmo, nmo)
-
-print '\nTotal time taken for ERI integrals: %.3f seconds.' % (time.time()-t)
-
 t=time.time()
 
-# Complete the AOpqrs -> MOiajb step
-MO = np.einsum('rJ,pqrs->pqJs', C, I)
-MO = np.einsum('pI,pqJs->IqJs', C, MO)
-MO = np.einsum('sB,IqJs->IqJB', C, MO)
-MO = np.einsum('qA,IqJB->IAJB', C, MO)
-
+# Grab OVOV MO integral from NumpyHelper
+nph = NumpyHelper()
+MO = np.array(nph.mo_eri())
 # (pq|rs) -> <ps|rq>
 MO = MO.swapaxes(1, 2)
 
-print '\nTotal time taken for integral transformation: %.f seconds' % (time.time()-t)
-print 'Shape of MO integrals %s \n' % str(MO.shape)
+print '\n..total time taken for RHF and integral transormation: %.3f seconds.' % (time.time()-t)
+print 'Shape of MO integrals: %s \n' % str(MO.shape)
 
 # Build epsilon tensor
 eocc = eps[:ndocc]
@@ -99,11 +88,11 @@ v = slice(ndocc, MO.shape[0])
 MP2corr_E = 2 * np.einsum('abrs,rsab,abrs', MO[o, o, v, v], MO[v, v, o, o], epsilon)
 MP2corr_E -= np.einsum('abrs,rsba,abrs', MO[o, o, v, v], MO[v, v, o, o], epsilon)
 MP2total_E = SCF_E + MP2corr_E
-print 'MP2 correlation energy: %16.8f' % MP2corr_E
-print 'MP2 total energy:       %16.8f' % MP2total_E
+print 'MP2 correlation energy:   %16.8f' % MP2corr_E
+print 'MP2 total energy:         %16.8f' % MP2total_E
 compare_values(energy('MP2'), MP2total_E, 6, 'MP2 Energy')
 
-print '\n Starting MP3 energy...'
+print '\nStarting MP3 energy...'
 t = time.time()
 
 # Equation 1
@@ -133,11 +122,11 @@ MP3corr_E += -4.0 * np.einsum('bcrt,atsc,rsab,bctr,abrs', MO[o, o, v, v], MO[o, 
 
 print '...took %.3f seconds to compute MP3 correlation energy.\n' % (time.time()-t)
 
-print 'Third order energy:     %16.8f' % MP3corr_E
+print 'Third order contribution: %16.8f' % MP3corr_E
 MP3corr_E += MP2corr_E
 MP3total_E = SCF_E + MP3corr_E
-print 'MP3 correlation energy: %16.8f' % MP3corr_E
-print 'MP3 total energy:       %16.8f' % MP3total_E
+print 'MP3 correlation energy:   %16.8f' % MP3corr_E
+print 'MP3 total energy:         %16.8f' % MP3total_E
 compare_values(energy('MP3'), MP3total_E, 6, 'MP3 Energy')
 
 
