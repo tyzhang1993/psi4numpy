@@ -67,7 +67,7 @@ t=time.time()
 
 # Grab OVQ DF-MO integral from NumpyHelper
 df_eri = np.array(nph.df_eri())
-# Form MO tensor 
+# Form MO tensor, trivial example
 MO = np.einsum('ijQ,klQ->ijkl', df_eri, df_eri)
 
 print '\n..total time taken for RHF and integral transormation: %.3f seconds.' % (time.time()-t)
