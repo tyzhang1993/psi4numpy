@@ -44,8 +44,6 @@ energy('RHF')
 
 # Grab data from 
 wfn = wavefunction()
-# Coefficient Matrix
-C = np.array(wfn.Ca())
 # Double occupied orbitals
 ndocc = wfn.doccpi()[0]
 # Number of molecular orbitals
@@ -53,8 +51,7 @@ nmo = wfn.nmo()
 # SCF energy
 SCF_E = wfn.energy()
 # Orbital energies
-eps = wfn.epsilon_a()
-eps = np.array([eps.get(x) for x in range(C.shape[0])])
+eps = np.array(wfn.epsilon_a())
 
 # Compute size of ERI tensor in GB
 ERI_Size = (nmo**4)*8.0 / 1E9
@@ -63,11 +60,12 @@ memory_footprint = ERI_Size*2.5
 if memory_footprint > numpy_memory:
     clean()
     raise Exception("Estimated memory utilization (%4.2f GB) exceeds numpy_memory limit of %4.2f GB." % (memory_footprint, numpy_memory))
-t=time.time()
 
-# Grab OVOV MO integral from NumpyHelper
-nph = NumpyHelper()
-MO = np.array(nph.mo_eri())
+t=time.time()
+mints = MintsHelper()
+C = wfn.Ca_subset("AO", "ALL")
+MO = np.array(mints.mo_eri(C, C, C, C))
+
 # (pq|rs) -> <ps|rq>
 MO = MO.swapaxes(1, 2)
 

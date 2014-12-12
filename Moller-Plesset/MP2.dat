@@ -65,11 +65,10 @@ if memory_footprint > numpy_memory:
 
 
 t=time.time()
-
-# Grab OVOV MO integral from NumpyHelper
-nph = NumpyHelper()
-MO = nph.mo_eri_subset('ACTIVE_OCC', 'ACTIVE_VIR', 'ACTIVE_OCC', 'ACTIVE_VIR')
-MO = np.array(MO)
+mints = MintsHelper()
+Co = wfn.Ca_subset("AO", "OCC")
+Cv = wfn.Ca_subset("AO", "VIR")
+MO = np.array(mints.mo_eri(Co, Cv, Co, Cv))
 
 print '\n..total time taken for RHF and integral transormation: %.3f seconds.' % (time.time()-t)
 print 'Shape of OVOV MO integrals: %s \n' % str(MO.shape)
