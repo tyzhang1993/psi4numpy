@@ -102,12 +102,15 @@ class helper_SAPT(object):
         print "Size of the ERI tensor will be %4.2f GB, %d basis functions." % (ERI_Size, self.nmo)
         memory_footprint = ERI_Size*5
         if memory_footprint > self.memory:
-            clean()
+            psi.clean()
             raise Exception("Estimated memory utilization (%4.2f GB) exceeds numpy_memory limit of %4.2f GB." % (memory_footprint, numpy_memory))
         
         # Integral generation from Psi4's MintsHelper
         # ERI's from mints are of type (11|22)- need <12|12>
-        # self.I = np.array(mints.ao_eri()).reshape(self.nmo, self.nmo, self.nmo, self.nmo).swapaxes(1,2)
+
+        mints = psi.MintsHelper()
+        self.I = mints.ao_eri()
+        #self.I = np.array(mints.ao_eri()).reshape(self.nmo, self.nmo, self.nmo, self.nmo).swapaxes(1,2)
         self.S = np.array(self.mints.ao_overlap()) 
 
         # Save additional rank 2 tensors
@@ -133,7 +136,7 @@ class helper_SAPT(object):
         c2 = self.orbitals[string[2]]
         c3 = self.orbitals[string[1]]
         c4 = self.orbitals[string[3]]
-        v = self.mints.mo_eri(c1, c2, c3, c4)
+        v = self.mints.mo_transform(self.I, c1, c2, c3, c4)
         v = np.array(v).swapaxes(1,2)
         # order = np.array([self.sizes[x] for x in string]).argsort()
         # v = self.I

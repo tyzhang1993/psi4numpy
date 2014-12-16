@@ -30,7 +30,7 @@ symmetry c1
 }
 
 set {
-basis jun-cc-pVDZ
+basis aug-cc-pVDZ
 e_convergence 1e-8
 d_convergence 1e-8
 }

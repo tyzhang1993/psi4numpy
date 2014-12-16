@@ -1,0 +1,121 @@
+# A simple Psi 4 input script to compute SAPT interaction energies
+# Requirements scipy 0.13.0+ and numpy 1.7.2+
+#
+#
+# Created by: Daniel G. A. Smith
+# Date: 12/1/14
+# License: GPL v3.0
+#
+
+import time
+import numpy as np
+from scipy import linalg as SLA
+from helper_SAPT import *
+#np.set_printoptions(precision=5, linewidth=200, threshold=2000, suppress=True)
+
+
+# Memory for numpy in GB
+numpy_memory = 2
+
+# Set molecule to dimer
+molecule dimer {
+O   -0.066999140   0.000000000   1.494354740
+H    0.815734270   0.000000000   1.865866390
+H    0.068855100   0.000000000   0.539142770
+--
+Ne   0.000000000   0.000000000   8.000000000
+symmetry c1
+}
+
+set {
+basis aug-cc-pVTZ
+e_convergence 1e-8
+d_convergence 1e-8
+}
+# psi_sapt0 = energy('SAPT0')
+mints = MintsHelper()
+
+
+sapt = helper_SAPT(psi4, energy, dimer, memory=64)
+MatrixI = mints.ao_eri()
+I = np.array(MatrixI).copy()
+Coa = np.array(sapt.Co_A)
+Cob = np.array(sapt.Co_B)
+
+Cva = np.array(sapt.Cv_A)
+Cvb = np.array(sapt.Cv_B)
+
+Carr = {'a':Coa, 'b':Cob, 'r':Cva, 's':Cvb}
+Csizes = {}
+for x in Carr.keys():
+    Csizes[x] = Carr[x].shape[1]
+
+print Csizes
+
+def check(string):
+
+    
+    t = time.time()
+    v = I
+    order = np.array([Csizes[x] for x in string]).argsort()
+    for i in order:
+        ao, mo = list('ijkl'), list('ijkl')
+        ao[i], mo[i] = 'a', 'b'
+        ein_string = 'ab,' + ''.join(ao) + '->' + ''.join(mo)
+        v = np.einsum(ein_string, Carr[string[i]], v)
+    loop_time = time.time() - t 
+
+    t = time.time()
+    c1 = sapt.orbitals[string[0]]
+    c2 = sapt.orbitals[string[1]]
+    c3 = sapt.orbitals[string[2]]
+    c4 = sapt.orbitals[string[3]]
+
+    mint = mints.mo_transform(MatrixI, c1, c2, c3, c4)
+    mint = np.array(mint)
+
+    mints_time = time.time() - t
+
+    #if True: 
+    if False: 
+        for a in range(4):
+            for b in range(4):
+                for c in range(4):
+                    for d in range(4):
+                        try:
+                            tmp = mint.transpose(a,b,c,d)
+                            cnt = (abs(v - tmp)< 1E-8).sum()
+                            print a,b,c,d,cnt,tmp.shape, np.allclose(v, tmp)
+                        except:
+                            continue
+    print v.shape, mint.shape
+    close = np.allclose(v, mint)
+    print 'For AO->MO %s, same result: %s, it took einsum %3.2f seconds and mints %3.2f seconds' % (string, close, loop_time, mints_time)
+    del mint
+
+
+check('aaaa')
+print '-'*40
+check('abrs')
+check('absr')
+check('bars')
+check('basr')
+
+print '-'*40
+check('rsab')
+check('srab')
+check('rsba')
+check('srba')
+
+print '-'*40
+check('aaaa')
+#check('rrrr')
+
+print '-'*40
+check('rbrb')
+check('rbbr')
+check('brbr')
+check('aarr')
+
+
+
