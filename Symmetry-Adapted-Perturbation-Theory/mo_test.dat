@@ -1,7 +1,6 @@
 # A simple Psi 4 input script to compute SAPT interaction energies
 # Requirements scipy 0.13.0+ and numpy 1.7.2+
 #
-#
 # Created by: Daniel G. A. Smith
 # Date: 12/1/14
 # License: GPL v3.0
@@ -28,7 +27,7 @@ symmetry c1
 }
 
 set {
-basis aug-cc-pVTZ
+basis aug-cc-pVDZ
 e_convergence 1e-8
 d_convergence 1e-8
 }
@@ -88,7 +87,7 @@ def check(string):
                             print a,b,c,d,cnt,tmp.shape, np.allclose(v, tmp)
                         except:
                             continue
-    print v.shape, mint.shape
+#    print v.shape, mint.shape
     close = np.allclose(v, mint)
     print 'For AO->MO %s, same result: %s, it took einsum %3.2f seconds and mints %3.2f seconds' % (string, close, loop_time, mints_time)
     del mint

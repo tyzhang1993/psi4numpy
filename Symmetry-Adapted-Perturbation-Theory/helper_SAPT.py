@@ -1,6 +1,5 @@
 # A SAPT helper object
 #
-#
 # Created by: Daniel G. A. Smith
 # Date: 12/1/14
 # License: GPL v3.0

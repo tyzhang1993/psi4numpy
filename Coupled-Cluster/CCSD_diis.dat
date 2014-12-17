@@ -48,11 +48,10 @@ symmetry c1
 
 
 set {
-basis sto-3G
+basis sto-3g
 scf_type pk
 guess core
 mp2_type conv
-freeze_core false
 e_convergence 1e-10
 d_convergence 1e-10
 }
@@ -93,8 +92,8 @@ if memory_footprint > numpy_memory:
 
 t=time.time()
 # Grab MO integral from NumpyHelper
-nph = NumpyHelper()
-MO = np.array(nph.mo_spin_eri())
+C = wfn.Ca()
+MO = np.array(mints.mo_spin_eri(C, C))
 
 print '\n..total time taken for RHF and integral transormation: %.3f seconds.' % (time.time()-t)
 print 'Shape of spin orbital integrals: %s \n' % str(MO.shape)
@@ -266,33 +265,47 @@ print 'Maximum DIIS vector size is %d.\n' % max_diis
 
 ### Start Iterations
 E_conv = 1.e-12
-maxiter = 5 
+maxiter = 6
 CCSDcorr_E_old = 0.0
 
-for CCSD_iter in range(1, maxiter + 1):
-    
-    if CCSD_iter >= 3:
+for CCSD_iter in range(0, maxiter + 1):
+
+    ### Compute CCSD correlation energy
+    CCSDcorr_E = np.einsum('ia,ia->', F[o, v], t1)
+    CCSDcorr_E += 0.25 * np.einsum('ijab,ijab->', MO[o, o, v, v], t2)
+    CCSDcorr_E += 0.5 * np.einsum('ijab,ia,jb->', MO[o, o, v, v], t1, t1)
+
+    ### Print CCSD correlation energy
+    print 'CCSD Iteration %3d: CCSD correlation = %.12f   dE = % .5E' % (CCSD_iter, CCSDcorr_E, (CCSDcorr_E - CCSDcorr_E_old))
+    if (abs(CCSDcorr_E - CCSDcorr_E_old) < E_conv):
+        break
+
+    CCSDcorr_E_old = CCSDcorr_E
+
+    ### Start DIIS  
+    if CCSD_iter in [2, 4]:
+    #if CCSD_iter >= 2:
         # Limit size of DIIS vector
         # if (len(diis_vals) > max_diis) or (len(diis_vals) > 10):
         #     del diis_vals[-1]
 
         diis_size = len(diis_vals_t1) - 1
 
-        # Build amplitude differences
-        diis_diffs_t1 = []
-        diis_diffs_t2 = []
-        for x in range(diis_size, 0, -1):
-            diis_diffs_t1 = [diis_vals_t1[x] - diis_vals_t1[x-1]] + diis_diffs_t1
-            diis_diffs_t2 = [diis_vals_t2[x] - diis_vals_t2[x-1]] + diis_diffs_t2
-
         # Build error matrix B
         B = np.ones((diis_size + 1, diis_size + 1)) * -1
         B[-1, -1] = 0
 
         for n1 in range(diis_size):
-            for n2 in range(diis_size):
-                B[n1, n2] = np.einsum('ia,ia->', diis_diffs_t1[n1], diis_diffs_t1[n2])
-                B[n1, n2] += np.einsum('ijab,ijab->', diis_diffs_t2[n1], diis_diffs_t2[n2])
+            for n2 in range(n1, diis_size):
+                t1_n1 = (diis_vals_t1[n1+1] - diis_vals_t1[n1]).ravel()
+                t1_n2 = (diis_vals_t1[n2+1] - diis_vals_t1[n2]).ravel()
+                B[n1, n2] = np.dot(t1_n1, t1_n2)
+
+                t2_n1 = (diis_vals_t2[n1+1] - diis_vals_t2[n1]).ravel()
+                t2_n2 = (diis_vals_t2[n2+1] - diis_vals_t2[n2]).ravel()
+                B[n1, n2] = np.dot(t2_n1, t2_n2)
+                B[n2, n1] = B[n1, n2]
+
 
         B[:-1, :-1] /= np.abs(B[:-1, :-1]).max()
 
@@ -303,14 +316,14 @@ for CCSD_iter in range(1, maxiter + 1):
         # Solve pulay equations
         ci = SLA.solve(B, resid)
 
-        # Calculate new fock matrix as linear 
-        # combination of previous fock matrices
-        t1 = np.zeros_like(t1)
-        t2 = np.zeros_like(t2)
-        for num in range(diis_size):
-            print ci[num]
-            t1 += ci[num] * diis_vals_t1[num]
-            t2 += ci[num] * diis_vals_t2[num]
+        # Calculate new amplitudes
+        print 'ci',np.sum(ci[:-1]),ci
+        t1[:] = 0.0
+        t2[:] = 0.0
+        for num,c in enumerate(ci[:-1]):
+            t1 += c * diis_vals_t1[num+1]
+            t2 += c * diis_vals_t2[num+1]
+    ### End DIIS
 
     ### Build intermediates
     Fae = build_Fae(t1, t2) 
@@ -373,21 +386,9 @@ for CCSD_iter in range(1, maxiter + 1):
     t1 = rhs_T1 / Dia
     t2 = rhs_T2 / Dijab
 
-    # Add DIIS vectors
-    diis_vals_t1 = [t1] + diis_vals_t1
-    diis_vals_t2 = [t2] + diis_vals_t2
-
-    ### Compute CCSD correlation energy
-    CCSDcorr_E = np.einsum('ia,ia->', F[o, v], t1)
-    CCSDcorr_E += 0.25 * np.einsum('ijab,ijab->', MO[o, o, v, v], t2)
-    CCSDcorr_E += 0.5 * np.einsum('ijab,ia,jb->', MO[o, o, v, v], t1, t1)
-
-    ### Print CCSD correlation energy
-    print 'CCSD Iteration %3d: CCSD correlation = %.12f   dE = % .5E' % (CCSD_iter, CCSDcorr_E, (CCSDcorr_E - CCSDcorr_E_old))
-    if (abs(CCSDcorr_E - CCSDcorr_E_old) < E_conv):
-        break
-
-    CCSDcorr_E_old = CCSDcorr_E
+    ### Add DIIS vectors
+    diis_vals_t1 += [t1.copy()]
+    diis_vals_t2 += [t2.copy()]
 
 
 CCSD_E = SCF_E + CCSDcorr_E
@@ -413,3 +414,4 @@ print 'Total CCSD energy:                 % 16.10f' % CCSD_E
 #     print '%4d  %4d  %4d  %4d |   % 5.10f' % (inds[0], inds[1], inds[2], inds[3], value)
 
 
+# energy('CCSD')

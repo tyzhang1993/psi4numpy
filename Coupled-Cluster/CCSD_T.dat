@@ -81,8 +81,8 @@ if memory_footprint > numpy_memory:
 
 t=time.time()
 # Grab MO integral from NumpyHelper
-nph = NumpyHelper()
-MO = np.array(nph.mo_spin_eri())
+C = wfn.Ca()
+MO = np.array(mints.mo_spin_eri(C, C))
 
 print '\n..total time taken for RHF and integral transormation: %.3f seconds.' % (time.time()-t)
 print 'Shape of spin orbital integrals: %s \n' % str(MO.shape)
